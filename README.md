@@ -332,6 +332,51 @@ df.Capply(mean)
 df.Rapply(mean)
 ```
 
+#### Row cleaning with compiled formulas
+
+`Capply` and `Rapply` hand a whole Series to a Go function. When a table is
+heterogeneous and each row has to be cleaned with the same set of expressions,
+compile the expressions once against the table schema and apply the result to
+as many tables as needed:
+
+```go
+cleaner, err := dataframe.CompileRowCleaner(df, []dataframe.RowFormula{
+    {Column: "amount", Expr: "double(qty) * price", Type: series.Float},
+    {Column: "amount", Expr: "amount + 1.0", Type: series.Float},
+    {Column: "label", Expr: `upper(item) + ":" + string(amount)`, Type: series.String},
+}, "qty > 0 && amount >= 1.0")
+if err != nil {
+    log.Fatal(err) // syntax, unknown column or type error: nothing was processed
+}
+
+cleaned, rejected, err := cleaner.Apply(df)
+```
+
+Each formula reads the original row and the columns computed by earlier
+formulas, and its inputs are read before its own column is written (so the
+second `amount` formula sees the value produced by the first, and a formula
+that overwrites an existing column sees the value that column had before). The
+declared `Type` is checked when the formulas are compiled, and columns keep
+their own types: nothing is cast to a single row type, `series.Int` values stay
+exact `int64` (overflow is an error instead of a silent wrap) and missing
+values are `null` rather than an empty string.
+
+Configuration problems fail the whole batch before any row is read. Problems
+that depend on a row (division by zero, overflow, a failed conversion) put that
+row, with its original values, into `rejected` together with the row index, the
+failing column, the expression, the byte offset of the error and a message,
+while the other rows keep going. A row for which the filter is `false` or
+`null` is dropped from both results.
+
+Expressions use a CEL subset implemented inside the `dataframe` package
+(standard library only, no new module dependency): literals, the usual
+arithmetic, comparison and logical operators (`&&` and `||` short-circuit,
+`?:` is the conditional), `in`, list literals and the functions `int`,
+`double`, `string`, `bool`, `size`, `abs`, `min`, `max`, `coalesce`, `lower`,
+`upper`, `trim`, `contains`, `startsWith`, `endsWith` and `isNaN`. There are
+no implicit conversions between types; use the conversion functions when a
+formula needs to change a kind.
+
 #### Chaining operations
 
 DataFrames support a number of methods for wrangling the data,

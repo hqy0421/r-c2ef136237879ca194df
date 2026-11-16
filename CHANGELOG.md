@@ -5,6 +5,16 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 This document follows
 [markdownlint](https://github.com/markdownlint/markdownlint) formatting rules.
 
+## [Unreleased]
+
+### Added
+
+- dataframe.RowCleaner: compile a list of CEL formulas once against a table
+  schema and apply them row by row, with declared output types, mixed column
+  types preserved, null aware missing values, overflow checked integer
+  arithmetic, a reject table with the failing row and error position, and an
+  optional filter on the computed row.
+
 ## [0.12.0] - 2021-10-10
 
 ### Added in 0.12.0
